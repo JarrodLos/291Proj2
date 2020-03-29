@@ -1,4 +1,4 @@
-Mini Project #1 (Lab EH01)
+Mini Project #2 (Lab EH01)
 Group size: 2
 
 Members:
