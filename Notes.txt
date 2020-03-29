@@ -1,0 +1,40 @@
+General Notes:
+ * reviews.txt: For each review a unique review id, a product id, a product title, a product price, userid and profile name of the reviewer, helpfulness of the review, review score, review timestamp, summary and full text of the review.
+
+* scores.txt: One line for each review record in the form of sc,I where sc is the review score (represented with one digit of decimal) and I is the review id.
+
+* pterms.txt: Terms of length 3 or more characters extracted from product titles. Each term is a consecutive sequence of alphanumeric and underscore characters, all in lowercase. The format of the file is t,I where t is a term extracted from a review record (in reviews.txt) with id l.
+
+* rterms.txt: Terms of length 3 or more characters extracted from the fields review summary and review text. Each term is a consecutive sequence of alphanumeric and underscore characters, all in lowercase. The format of the file is t,I where t is a term extracted from a review record (in reviews.txt) with id l.
+
+* To get db import: https://eclass.srv.ualberta.ca/pluginfile.php/5496403/mod_label/intro/bsddb3.pdf
+
+TODO: Part 1
+  - [ ] Sort data files: (Keep only unique rows using linux cmd "sort")
+        - Use: sort -u myfile.txt -o sortedfile.txt (List only the unique lines (rows))
+        - [X] reviews.txt (Provided sorted from eclass)
+        - [X] scores.txt
+        - [X] pterms.txt
+        - [X] rterms.txt
+
+  - [ ] Create the following four indexes:
+        - [ ] reviews: a hash index with review id as keys and the full review record as data
+        - [ ] pterms: B+-tree index with terms as keys and review ids as data
+        - [ ] rterms: B+-tree index with terms as keys and review ids as data
+        - [ ] score: B+-tree index with scores as keys and review ids as data
+
+Note:
+    - Keys: in all four cases are the character strings before the
+            first comma and the data is everything that comes after the comma.
+
+    - Use the db_load command to build your indexes.
+    - db_load by default expects keys in one line and data in the next line.
+    - Also db_load treats backslash as a special character and you want to
+      avoid backslash in your input. Here is a simple Perl script that converts input records into what db_load expects and also removes backslashes. Your program for Phase 1 would produce four indexes which should be named rw.idx, pt.idx, rt.idx,  and sc.idx respectively corresponding to indexes 1, 2, 3, and 4, as discussed above. It can be noted that the keys in rw.idx are unique but the keys in all other indexes can have duplicates.
+
+    - In addition to db_load, you may also find db_dump with option p useful
+      as you are building and testing the correctness of your indexes.
+      ( db_dump: reads the database file file and writes it to the standard output)
+
+
+TODO: Part 2
