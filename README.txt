@@ -9,4 +9,4 @@ We did not collaborate with anyone else!
 
 To run: python3 main.py
 
-NOTE: Part 1 was done through python, the code makes the calls to the OS where it is than processed using files instead of the terminal. They are organized by file with the final index being in the "Index" folder.
+NOTE: Part 1 was done through python, the code makes the calls to the OS where it is than processed using files instead of the terminal. They are organized by folder with the final index being in the "Index" folder.
