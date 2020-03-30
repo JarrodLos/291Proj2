@@ -42,3 +42,89 @@ Note:
 TODO: Part 2
     - [X] Change created file paths to make less crowded (Low low low priority)
     - [ ] Test the .idx files with the db_dump
+
+    Query
+    1) pterm:guitar
+    2) rterm:great
+    3) guitar
+    4) sound%
+    5) rterm:great sound%
+    6) score > 4
+    7) guitar  score < 3
+    8) price < 200 guitar
+    9) guitar date > 2007/05/16
+    10) guitar date > 2007/05/16  price > 200 price < 300
+
+    Explanation:
+    1) Returns all records that have the term guitar in the product title
+    2) Returns all records that have great in the review summary or the review text
+    3) Returns all records that have the term guitar in at least one of the fields product title, review summary or review text
+    4) Returns all records that have a term starting with sound (such as soundtrack, soundproof, sound) in at least one of the fields product title, review summary or review text
+    5) Returns all records that have the term great in the review summary or text and a term starting with sound in at least one of the fields product title, review summary or review text
+    6) Returns all records with a review score greater than 4
+    7) The 7th query is the same as the third query except that it returns only those records with a review score less than 3.
+    8) The 8th query is the same as the third query except that the query only returns those records where price is present and has a value less than 200.
+          NOTE: that there is no index on the price field; this field is checked after retrieving the candidate records using conditions on which indexes are available (e.g. terms).
+    9) Returns the records that have the term guitar in one of the fields product title, review summary or review text, and the review date is after 2007/05/16
+          NOTE:  Since there is no index on the review date, this condition is checked after checking the conditions on terms. Also the review date stored in file reviews.txt
+                 is in the form of a timestamp, and the date give in the query must be converted to a timestamp before a comparison (e.g. check out the date object in the datetime package for Python).
+    10) Returns the same set of results as in the 9th query except that the product price must be greater than 200 and less than 300.
+
+    More formally, each query defines some conditions that must be satisfied by one or more of the following fields: product title, product price, review score, review date, review summary and review text. A condition on terms can be either an exact match or a partial match; for simplicity, partial matches are restricted to prefix matches only (i.e. the wild card % can only appear at the end of a term). All matches are case-insensitive, hence the queries "Guitar", "guitar", "GUITAR" would retrieve the same results; for the same reason the extracted terms in the previous phase are all stored in lowercase. Matches on review scores (as in queries 6 and 7), review dates (as in queries 9 and 10) and product price (as in queries 8 and 10) are range conditions. A query can have multiple conditions (as in queries 5, 7, 8, 9 and 10) in which case the result must match all those conditions (i.e. the and semantics), and there is one or more spaces between the conditions.
+
+    There is zero or more spaces between the column names (e.g. pterm, rterm, score, date, and price) and the symbols ':', '>' and '<';  there is also zero or more spaces between any of those symbols and the term, the number or the date that follows them. Hence, score<4, score<     4, score   <4, and score     <    4 are all valid and would return the same matches. Queries can use two range predicates on the same field as is the case in Query 10. Each query term is a consecutive sequence of alphanumeric and underscore characters, i.e [0-9a-zA-Z_]. The keywords pterm, rterm, score, price and date are reserved for searches (as described above) and would not be used for any other purposes. The dates are formatted as yyyy/mm/dd in queries but they are stored as timestamps in the data file; this means dates in the input queries must be converted to timestamp before a search can be performed. You can assume every query has at least one condition on an indexed column, meaning the conditions on price and date can only be used if a condition on review/product terms or review scores is also present.
+
+    Here is a grammar for the query language. You can as well generate a visual
+    representation using an online railroad diagram editor (http://www.bottlecaps.de/rr/ui)
+
+    alphanumeric    ::= [0-9a-zA-Z_]
+    numeric		::= [0-9]
+    date            ::= numeric numeric numeric numeric '/' numeric numeric '/' numeric numeric
+    datePrefix      ::= 'date' whitespace* ( '>' | '<')
+    dateQuery       ::= datePrefix whitespace* date
+    pricePrefix	::= (price) whitespace* ( '>' | '<')
+    priceQuery	::= pricePrefix whitespace* numeric+
+    scorePrefix	::= (score) whitespace* ( '>' | '<')
+    scoreQuery	::= scorePrefix whitespace* numeric+
+    term            ::= alphanumeric+
+    termPrefix	::= (pterm | rterm) whitespace* ':'
+    termSuffix      ::= '%'
+    termQuery       ::= termPrefix? whitespace* term termSuffix?
+
+    expression      ::= dateQuery | priceQuery | scoreQuery | termQuery
+    query           ::= expression (whitespace expression)*
+
+    modeChange	::= 'output=full' | 'output=brief'
+
+    command		::= query | modeChange
+
+    When a query can be evaluated using multiple strategies, your evaluation should select the most efficient strategy (i.e., the one expected to be the fastest) as much as possible. For example, for Query 1, you can use the index on pterms (i.e. pt.idx) to find the matching review ids, then use the index on review ids (i.e., rw.idx) to find the actual records. For Query 7, you can use the index on score to find the review ids of reviews with score less than 3. You can also use the indexes on pterms and rterms to find the review ids of reviews that have the term guitar. After intersecting the two lists of review ids, you can use the index on review id to find the full records only for review ids in the intersection.
+
+    CMPUT 291 - Winter 2020
+    A marking rubric for Mini-project 2
+
+    [80 marks total] Demo session broken down to
+     [8 marks] Phase 1
+       The mark break-down is 80% for the correctness of indexes build and 20% for efficiency (in terms of running time).
+     [72 marks] Phase 2
+       [? marks] Single field search
+       [? marks] Multiple field search
+       [? marks] Partial match search
+       [? marks] Range search
+       [? marks] Complex search
+       [? marks] Full/brief output
+       [? marks] Search with large result sets
+       [? marks] Others
+
+       Answers to queries are expected to be instant independent of the dataset size. An answer that is correct but not instant can lose up to 50% of the mark. A query that takes more than 10sec will be considered as fail.
+
+    [15 marks total] Documentation and source code quality
+      (a) A general overview of the system with a sample usage
+      (b) A detailed design of the software
+      (c) Testing strategy and/or test cases
+      (d) A description of your algorithm for efficiently evaluating queries, in particular evaluating queries with multiple conditions, partial matches and and range searches, and an analysis of the efficiency of your algorithm
+      (e) Source code quality
+
+    [5 marks total] Group work break-down & coordination
+      (a) Task break-down
+      (b) Group work strategy and/or plan
