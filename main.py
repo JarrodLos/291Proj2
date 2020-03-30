@@ -10,24 +10,48 @@ def init():
     print("C) To retrieve data")
     print("D) To exit\n")
 
-# Format file name to a database type (.txt -> .db)
-def formatFileName(fileName):
-    newName = fileName.split(".")
-    return newName[0] + ".db"
+# Format file data for splitting data into db_load formatted
+def formatDBdata(fileName):
+    subprocess.call(["./break.pl", fileName])
 
+# Format file name to a database type (.txt -> .idx)
+# rw.idx, pt.idx, rt.idx, and sc.idx
+def formatDBname(fileName):
+    if (fileName == "sorted_pterms.txt"):
+        return "Index/pt.idx"
+    elif (fileName == "sorted_rterms.txt"):
+            return "Index/rt.idx"
+    elif (fileName == "reviews.txt"):
+            return "Index/rw.idx"
+    elif (fileName == "sorted_scores.txt"):
+            return "Index/sc.idx"
+    else:
+        print("ERROR: Cannot format the file " + fileName)
+
+# Takes the sorted files and creates a database using db_load
 def createIndex(fileName):
 
-    DB_File = formatFileName(fileName) # removes .txt -> "fileName.db"
-    database = db.DB()
-    database.set_flags(db.DB_DUP)
+    # Format the name of the database as well as the sorted data
+    formatDBdata(fileName)
+    dbName = formatDBname(fileName)
+    fileName = "formatted_" + fileName
 
     # DB Type: Hash
-    if fileName == "reviews.txt":
-        print("create Hash")
+    if fileName == "formatted_reviews.txt":
+        bashCommand = "db_load -T -f Formatted/" +  fileName +  " -t hash " + dbName
+        process = subprocess.Popen(bashCommand.split(), stdout=subprocess.PIPE)
+
+        # Find a way to handle errors in python not in terminal
+        output, error = process.communicate()
 
     # DB Type: B+-Tree
     else:
-        print("create b+")
+        bashCommand = "db_load -T -f Formatted/" +  fileName +  " -t btree " + dbName
+        process = subprocess.Popen(bashCommand.split(), stdout=subprocess.PIPE)
+
+        # Find a way to handle errors in python not in terminal
+        output, error = process.communicate()
+
 # Sorts an individual file provided its file name and it is in the directory
 def sortFile():
     fileName = input("\nFile name you would like sorted and indexed: ")
@@ -52,18 +76,19 @@ def sortAllFiles():
 
     # Sort all files except reviews (pterms, rterms and scores)
     for i in range(0, 3):
+
         # The sort command sent to terminal (Linux)
-        bashCommand = "sort -u " +  fileName[i] + " -o " + "sorted_" + fileName[i]
+        bashCommand = 'sort -u RawData/' +  fileName[i] + " -o " + "Sorted/sorted_" + fileName[i]
         process = subprocess.Popen(bashCommand.split(), stdout=subprocess.PIPE)
 
         # Find a way to handle errors in python not in terminal
         output, error = process.communicate()
-        print("The file " + fileName[i] + " was sorted and saved as sorted_" + fileName[i])
-        # fileName[i] = "sorted_" + fileName[i]
+        fileName[i] = "sorted_" + fileName[i]
 
+    # Create the index files for all the sorted data
     for file in fileName:
-        createIndex(fileName)
-        print("The file " + file + " was indexed accordingly")
+        createIndex(file)
+    print("\nAll the files have been sorted and indexed!")
 
 # Handles the navigation of the program from user input
 def option(selectedProcess):
@@ -76,7 +101,7 @@ def option(selectedProcess):
     elif (selectedProcess.lower() == "b"): # Sort all files (provided they are formatted)
         sortAllFiles()
         init()
-        return True
+        return False
 
     # Part 2: Data queries
     elif (selectedProcess.lower() == "c"):
@@ -91,48 +116,8 @@ def option(selectedProcess):
         print("\nERROR: Entry " + selectedProcess + " is not a valid option, please try again\n")
         return False
 
-
-# DB_File = "fruit.db"
-# database = db.DB() # handle for Berkeley DB database
-#
-# # Do we want to allow duplicates? (This cmd allows dups.)
-# database.set_flags(db.DB_DUP)
-#
-# # The arguments correspond to (fileName, database name within the file for multiple
-# # databases, database type, flag to create database)
-# database.open(DB_File ,None, db.DB_HASH, db.DB_CREATE)
-# # database.open(DB_File ,None, db.DB_BTREE, db.DB_CREATE)
-#
-# curs = database.cursor()
-
-# # Hash index on reviews.txt with review id as keys and the full review record as data
-# DB_File = "reviews.db"
-# database = db.DB()
-# database.set_flags(db.DB_DUP)
-# database.open(DB_File ,None, db.DB_HASH, db.DB_CREATE)
-#
-# # B+-tree index on pterms.txt with terms as keys and review ids as data
-# DB_File = "pterms.db"
-# database = db.DB()
-# database.set_flags(db.DB_DUP)
-# database.open(DB_File ,None, db.DB_BTREE, db.DB_CREATE)
-#
-# #  B+-tree index on rterms.txt with terms as keys and review ids as data
-# DB_File = "rterms.db"
-# database = db.DB()
-# database.set_flags(db.DB_DUP)
-# database.open(DB_File ,None, db.DB_BTREE, db.DB_CREATE)
-#
-# # B+-tree index on scores.txt with scores as keys and review ids as data
-# DB_File = "scores.db"
-# database = db.DB()
-# database.set_flags(db.DB_DUP)
-# database.open(DB_File ,None, db.DB_BTREE, db.DB_CREATE)
-
-
 if (__name__ == "__main__"):
-    # Initialize and login
-    global connection, cursor, currUser
+    # Initialize
     init()
 
     # Take user input and redirect to sorting file or queries
