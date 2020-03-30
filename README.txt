@@ -7,6 +7,16 @@ Members:
 
 We did not collaborate with anyone else!
 
-To run: python3 main.py
+To run: 
+Part 1: "python3 main.py" and select option "A"
+         or
+        "python3 buildDB.py"
+        
+Part 2: "python3 main.py" and select option "B" to run queries
 
-NOTE: Part 1 was done through python, the code makes the calls to the OS where it is than processed using files instead of the terminal. They are organized by folder with the final index being in the "Index" folder.
+NOTES: 
+
+ Part 1
+ - Was done through python, the code makes the calls to the OS referencing the original text files. These text files must be placed into      the "RawData" folder! 
+
+ - Folders organize the steps taken in sorting, formatting and building the indexs from the text files. 
