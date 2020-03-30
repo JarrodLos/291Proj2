@@ -8,6 +8,7 @@ General Notes:
 * rterms.txt: Terms of length 3 or more characters extracted from the fields review summary and review text. Each term is a consecutive sequence of alphanumeric and underscore characters, all in lowercase. The format of the file is t,I where t is a term extracted from a review record (in reviews.txt) with id l.
 
 * To get db import: https://eclass.srv.ualberta.ca/pluginfile.php/5496403/mod_label/intro/bsddb3.pdf
+* db_load: sudo apt install db-util
 
 TODO: Part 1
   - [ ] Sort data files: (Keep only unique rows using linux cmd "sort")
@@ -17,11 +18,12 @@ TODO: Part 1
         - [X] pterms.txt
         - [X] rterms.txt
 
-  - [ ] Create the following four indexes:
-        - [ ] reviews: a hash index with review id as keys and the full review record as data
-        - [ ] pterms: B+-tree index with terms as keys and review ids as data
-        - [ ] rterms: B+-tree index with terms as keys and review ids as data
-        - [ ] score: B+-tree index with scores as keys and review ids as data
+  - [X] Create the following four indexes:
+        - [X] reviews: a hash index with review id as keys and the full review record as data
+        - [X] pterms: B+-tree index with terms as keys and review ids as data
+        - [X] rterms: B+-tree index with terms as keys and review ids as data
+        - [X] score: B+-tree index with scores as keys and review ids as data
+
 
 Note:
     - Keys: in all four cases are the character strings before the
@@ -38,3 +40,5 @@ Note:
 
 
 TODO: Part 2
+    - [X] Change created file paths to make less crowded (Low low low priority)
+    - [ ] Test the .idx files with the db_dump
