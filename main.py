@@ -4,124 +4,90 @@ import subprocess
 
 # Initial print of commands to guide the user through the program
 def init():
+    global outputFlag
     print("\nPlease select one of the following options:")
-    print("\nA) To sort and index a single file")
-    print("B) To sort and index all files")
-    print("C) To retrieve data")
-    print("D) To exit\n")
+    print("A) To sort and index all files")
+    print("B) To retrieve data")
+    print("C) To exit\n")
 
-# Format file data for splitting data into db_load formatted
-def formatDBdata(fileName):
-    subprocess.call(["./break.pl", fileName])
+    # Flag for queries - True is Full, False is brief
+    outputFlag = False;
 
-# Format file name to a database type (.txt -> .idx)
-# rw.idx, pt.idx, rt.idx, and sc.idx
-def formatDBname(fileName):
-    if (fileName == "sorted_pterms.txt"):
-        return "Index/pt.idx"
-    elif (fileName == "sorted_rterms.txt"):
-            return "Index/rt.idx"
-    elif (fileName == "reviews.txt"):
-            return "Index/rw.idx"
-    elif (fileName == "sorted_scores.txt"):
-            return "Index/sc.idx"
-    else:
-        print("ERROR: Cannot format the file " + fileName)
+# Handles the navigation of the program from user input for Part 2
+def option():
 
-# Takes the sorted files and creates a database using db_load
-def createIndex(fileName):
+    selectedProcess = input("Option Selected: ")
 
-    # Format the name of the database as well as the sorted data
-    formatDBdata(fileName)
-    dbName = formatDBname(fileName)
-    fileName = "formatted_" + fileName
+    # Part 1: Build indexs
+    # NOTE: Expects files: reviews.txt, scores.txt, rterms.txt, pterms.txt in RawData
+    if (selectedProcess.lower() == "a"):
 
-    # DB Type: Hash
-    if fileName == "formatted_reviews.txt":
-        bashCommand = "db_load -T -f Formatted/" +  fileName +  " -t hash " + dbName
+        # Call the other .py file that sorts, formats and builds the indexs
+        bashCommand = "python3 buildDB.py"
         process = subprocess.Popen(bashCommand.split(), stdout=subprocess.PIPE)
-
-        # Find a way to handle errors in python not in terminal
-        output, error = process.communicate()
-
-    # DB Type: B+-Tree
-    else:
-        bashCommand = "db_load -T -f Formatted/" +  fileName +  " -t btree " + dbName
-        process = subprocess.Popen(bashCommand.split(), stdout=subprocess.PIPE)
-
-        # Find a way to handle errors in python not in terminal
-        output, error = process.communicate()
-
-# Sorts an individual file provided its file name and it is in the directory
-def sortFile():
-    fileName = input("\nFile name you would like sorted and indexed: ")
-
-    # Sort all files except reviews (pterms, rterms and scores)
-    if (fileName != reviews.txt):
-        bashCommand = "sort -u " +  fileName + " -o " + "sorted_" + fileName
-        process = subprocess.Popen(bashCommand.split(), stdout=subprocess.PIPE)
-
-        # Find a way to handle errors in python not in terminal
-        output, error = process.communicate()
-        print("The file " + fileName + " was sorted and saved as sorted_" + fileName)
-        fileName = "sorted_" + fileName
-
-    # Create index
-    createIndex(fileName)
-    print("The file " + file + " was indexed accordingly")
-
-# Sorts all the files expected for the group 2 project (pterms, rterms and scores)
-def sortAllFiles():
-    fileName = ["scores.txt", "pterms.txt", "rterms.txt", "reviews.txt"]
-
-    # Sort all files except reviews (pterms, rterms and scores)
-    for i in range(0, 3):
-
-        # The sort command sent to terminal (Linux)
-        bashCommand = 'sort -u RawData/' +  fileName[i] + " -o " + "Sorted/sorted_" + fileName[i]
-        process = subprocess.Popen(bashCommand.split(), stdout=subprocess.PIPE)
-
-        # Find a way to handle errors in python not in terminal
-        output, error = process.communicate()
-        fileName[i] = "sorted_" + fileName[i]
-
-    # Create the index files for all the sorted data
-    for file in fileName:
-        createIndex(file)
-    print("\nAll the files have been sorted and indexed!")
-
-# Handles the navigation of the program from user input
-def option(selectedProcess):
-    if (selectedProcess.lower() == "a"): # Sort a single file
-        sortFile()
-        init()
-        return False
-
-    # Expects files: reviews.txt, scores.txt, rterms.txt, pterms.txt
-    elif (selectedProcess.lower() == "b"): # Sort all files (provided they are formatted)
-        sortAllFiles()
+        print("\nThe files have been successfuly sorted and indexed!")
         init()
         return False
 
     # Part 2: Data queries
-    elif (selectedProcess.lower() == "c"):
+    elif (selectedProcess.lower() == "b"): # Sort all files (provided they are formatted)
         # Data queries
         return True
 
-    elif (selectedProcess.lower() == "d"):
-        print("Exiting program...")
+    elif (selectedProcess.lower() == "c"):
+        print("\nExiting program...")
         exit()
 
     else:
         print("\nERROR: Entry " + selectedProcess + " is not a valid option, please try again\n")
         return False
 
+# Listens for a output change or exit at any time
+def customIn(prompt = ""):
+    global outputFlag
+
+    myInput = input(prompt)
+    if (myInput == "output=brief"):
+        outputFlag = False
+        print("The output format has been changed to: Brief")
+        return "modeChange"
+
+    elif (myInput == "output=full"):
+        print(outputFlag)
+        print("The output format has been changed to: Full")
+        return "modeChange"
+
+    elif (myInput == "exit"):
+        print("\nExiting program...")
+        exit()
+
+    else:
+        return myInput
+
+# Handles queries and navigation of user input for Part 2
+def queryListener():
+    print("\nPlease enter a query or change mode, for more detail enter '?'")
+    query = customIn("Entry: ")
+
+    if (query == "modeChange"): # Mode has been changed b/t brief or full
+        return True
+
+    elif (query == "?"):
+        print("\nTo change mode: enter 'output=brief' or 'output=full' for a brief or more detailed output")
+        print("To run a query: simply enter your query!")
+        print("To exit the program, enter 'exit' at any time")
+
+    return True
+
 if (__name__ == "__main__"):
     # Initialize
+    global outputFlag
     init()
 
-    # Take user input and redirect to sorting file or queries
-    process = input("Option Selected: ")
-    while(not option(process)):
-        process = input("Option Selected: ")
+    # Take user input and redirect to sorting file or search queries
+    while(not option()):
+        pass
+
+    # Process user queries
+    while(queryListener()):
         pass
