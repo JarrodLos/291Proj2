@@ -1,7 +1,7 @@
 Uncertainties:
 - Is it fine to filter through the rw.idx "data" to get score, using the index is 	inconsistent.
 
-- Should we remove duplicate keys when printing the reviews? (Ex. From a query in any of the B+- Tree databases, multiple copies of a review ID may be returned, should we still print all the copies or remove duplicates.)
+- Should we remove duplicate keys when printing the reviews? (Ex. From a query in any of the B+- Tree databases, multiple copies of a review ID may be returned, should we still print all the copies or remove duplicates.) Similar story with printing the product title and pterms.
 
 General Notes:
  * reviews.txt: For each review a unique review id, a product id, a product title, a product price, userid and profile name of the reviewer, helpfulness of the review, review score, review timestamp, summary and full text of the review.
