@@ -64,6 +64,7 @@ def customIn(prompt = ""):
     else:
         return myInput
 
+
 # Checks the query for various input types, wild cards and conditions
 def checkQuery(query):
     ##### Some notes from building the queries in PT 2 as well as possible breakdown ######
@@ -77,6 +78,88 @@ def checkQuery(query):
 
     # You can assume every query has at least one condition on an indexed column,
     # meaning the conditions on price and date can only be used if a condition on review/product terms or review scores is also present.
+
+    queryParts = []
+    initQuerySplit = query.split()
+
+    for i in initQuerySplit:
+        if(i.find(":") > 0):
+            first, second = i.split(":")
+            queryParts.append(first)
+            queryParts.append(":")
+            queryParts.append(second)
+        elif(i.find("<") > 0):
+            first, second = i.split("<")
+            queryParts.append(first)
+            queryParts.append("<")
+            queryParts.append(second)
+        elif(i.find(">") > 0):
+            first, second = i.split(">")
+            queryParts.append(first)
+            queryParts.append(">")
+            queryParts.append(second)
+        else:
+            queryParts.append(i)
+
+
+    print("\nDeconstructed Query:")
+    i=0
+    term = ""
+    condition = ""
+    amount = ""
+
+    while i < len(queryParts):
+        delimiterFound = False
+
+        # Range Conditions
+        # Note: to ensure we don't attempt to query out of range, we add "i+1 < len(queryParts)"
+        if(i+1 < len(queryParts)):
+            if(queryParts[i+1] == "<" or queryParts[i+1] == ">"):
+                condition = queryParts[i]
+                amount = queryParts[i+2]
+
+                # Set the operator
+                lessThanOperator = False
+                if(queryParts[i+1] == "<"):
+                    lessThanOperator = True
+
+                if(condition == "date"):
+                    # do date search ############
+                    pass
+                elif(condition == "price"):
+                    pass
+                    # do price search ############
+                elif(condition == "score"):
+                    pass
+                    # do score search ############
+                else:
+                    print("ERROR: Unknown query condition.")
+                    break
+
+                # Print the statement
+                if(lessThanOperator):
+                    print("SPECIAL: " + condition + " < " + amount)
+                else:
+                    print("SPECIAL: " + condition + " > " + amount)
+
+                i+=2
+                delimiterFound = True
+
+            elif(queryParts[i+1] == ":"):
+                table = queryParts[i]
+                term = queryParts[i+2]
+
+                # Search only specified tables for the term ############
+                print("Table: " + table + " - Term: " + term)
+
+                i+=2
+                delimiterFound = True
+
+        if(not delimiterFound):
+            # Search all tables for the term ############
+            print(queryParts[i])
+
+        i+=1
 
     # if query contains ":"
         # Parse and first half is the db, second half is the key
