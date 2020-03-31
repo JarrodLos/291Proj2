@@ -4,14 +4,30 @@ import subprocess
 
 # Initial print of commands to guide the user through the program
 def init():
-    global outputFlag
+
     print("\nPlease select one of the following options:")
     print("A) To sort and index all files")
     print("B) To retrieve data")
     print("C) To exit\n")
 
+# Creates reference to the databases
+def initDB():
+    global outputFlag, pt, rt, sc, rw
+
     # Flag for queries - True is Full, False is brief
     outputFlag = False;
+
+    # Creating db objects for our indexes
+    pt = db.DB() # -> title terms
+    rt = db.DB() # -> review terms
+    sc = db.DB() # -> scores
+    rw = db.DB() # -> review ids
+
+    # Open with the corresponding data base type
+    pt.open("Index/pt.idx", None, db.DB_BTREE, db.DB_RDONLY)
+    rt.open("Index/rt.idx", None, db.DB_BTREE, db.DB_RDONLY)
+    sc.open("Index/sc.idx", None, db.DB_BTREE, db.DB_RDONLY)
+    rw.open("Index/rw.idx", None, db.DB_HASH, db.DB_RDONLY)
 
 # Handles the navigation of the program from user input for Part 2
 def option():
@@ -44,29 +60,152 @@ def option():
 
 # Listens for a output change or exit at any time
 def customIn(prompt = ""):
-    global outputFlag
+    global outputFlag, pt, rt, sc, rw
 
-    myInput = input(prompt)
+    myInput = input(prompt).lower()
     if (myInput == "output=brief"):
         outputFlag = False
         print("The output format has been changed to: Brief")
         return "modeChange"
 
     elif (myInput == "output=full"):
-        print(outputFlag)
+        outputFlag = True
         print("The output format has been changed to: Full")
         return "modeChange"
 
     elif (myInput == "exit"):
         print("\nExiting program...")
+        pt.close()
+        rt.close()
+        sc.close()
+        rw.close()
         exit()
 
     else:
         return myInput
 
+# Prints the results of query (Brief or Full)
+def printQuery(listofIDs):
+    # Flag for queries - True is Full, False is brief
+    global outputFlag, rw
 
-# Checks the query for various input types, wild cards and conditions
+                                        #### OUTPUT ####
+    # Brief: review id , the product title and the review score of all matching reviews.
+    # Full: output will include all review fields (All data from rw.idx on key id)
+
+    # Removes the trailing \r from decoding (Database returns byte value)
+    for ID in listofIDs:
+
+        Key = ID.replace('\r', '')
+
+        # Point cursor to the provided ID in the reviews database
+        curs = rw.cursor()
+        result = curs.set(Key.encode("utf-8"))
+        curs.close()
+
+        # If the ID exists -> get data!
+        if (result != None):
+            value =result[1].decode("utf-8")
+            value = value.split(",")
+
+            # Inconsistency in the indexs of reviews data -> Search for score(ex. 5.0)
+            for i in value:
+                if (len(i) == 3) and (int(i[0]) <= 5) and (i[1] == "."):
+                    score = str(i)
+                    break
+
+            if (outputFlag is False): # PRINT: BRIEF SUMMARY
+
+                # Grab the desired data and print
+                Brief_Summary = ("\nReview ID: " + str(result[0].decode("utf-8"))
+                                + "\nProduct Title: " + str(value[1])
+                                + "\nReview Score: " + score)
+                print(Brief_Summary)
+
+            else: # PRINT: FULL SUMMARY
+
+                # for term in value:
+                #     print("\n" + str(term))
+
+                # Grab the desired data and print
+                Full_Summary = "Make the full summary"
+                print(Full_Summary)
+
+        else:
+            print("ERROR: PrintQuery")
+
+# Runs the original query to retrieve Review ID
+def runQuery(query):
+    global pt, rt, sc
+
+        #### NOTE ####         [key        , data              ]
+    # rw.idx -> (review ids)   [review id  , full review record]
+    # rt.idx -> (review terms) [terms      , review id         ]
+    # pt.idx -> (title terms)  [terms      , review id         ]
+    # sc.idx -> (scores)       [score      , review id         ]
+
+    # Keys: rt, pt & sc can have duplicates, rw cannot
+    # Data: only the ID for rt, pt & sc, you have to iterate through rw data
+
+                ########### Query 1) pterm:guitar ###########
+    curs = pt.cursor()
+    query = "guitar"
+    result = curs.set(query.encode("utf-8"))
+
+    if result != None:
+        print("\nList of all reviews found using input '" + query + "'")
+        listofIDs = list()
+
+        while result != None:
+            if(str(result[0].decode("utf-8")) != query):
+                break
+
+            # Only keep track of new IDs! (Not sure if we should do this)
+            ReviewID = str(result[1].decode("utf-8"))
+            if ReviewID not in listofIDs:
+                listofIDs.append(ReviewID)
+
+            result = curs.next()
+
+    curs.close()
+
+    # If list is not empty, get the summaries for the ID's
+    if listofIDs:
+        printQuery(listofIDs)
+
+                ########### Query 2) rterm:great ###########
+    # curs = rt.cursor()
+    # query = "great"
+    # result = curs.set(query.encode("utf-8"))
+    #
+    # if result != None:
+    #     print("\nList of all reviews found using input '" + query + "'")
+    #     listofIDs = list()
+    #
+    #     while result != None:
+    #         if(str(result[0].decode("utf-8")) != query):
+    #             break
+    #
+    #         # Only keep track of new IDs! (Replicating ID's consume efficiency)
+    #         ReviewID = str(result[1].decode("utf-8"))
+    #         if ReviewID not in listofIDs:
+    #             listofIDs.append(ReviewID)
+    #
+    #         result = curs.next()
+    #
+    # curs.close()
+    #
+    # # If list is not empty, get the summaries for the ID's
+    # if listofIDs:
+    #     printQuery(listofIDs)
+
+
+
+
+    return True
+
 def checkQuery(query):
+    runQuery(query)
     ##### Some notes from building the queries in PT 2 as well as possible breakdown ######
     # All matches are case-insensitive, query has been passed in casted to "lowercase"
     # There is one or more spaces between the conditions.
@@ -78,103 +217,6 @@ def checkQuery(query):
 
     # You can assume every query has at least one condition on an indexed column,
     # meaning the conditions on price and date can only be used if a condition on review/product terms or review scores is also present.
-
-    queryParts = []
-    initQuerySplit = query.split()
-
-    for i in initQuerySplit:
-        if(i.find(":") > 0):
-            first, second = i.split(":")
-            queryParts.append(first)
-            queryParts.append(":")
-            queryParts.append(second)
-        elif(i.find("<") > 0):
-            first, second = i.split("<")
-            queryParts.append(first)
-            queryParts.append("<")
-            queryParts.append(second)
-        elif(i.find(">") > 0):
-            first, second = i.split(">")
-            queryParts.append(first)
-            queryParts.append(">")
-            queryParts.append(second)
-        else:
-            queryParts.append(i)
-
-
-    print("\nDeconstructed Query:")
-    i=0
-    term = ""
-    condition = ""
-    amount = ""
-
-    while i < len(queryParts):
-        delimiterFound = False
-
-        # Range Conditions
-        # Note: to ensure we don't attempt to query out of range, we add "i+1 < len(queryParts)"
-        if(i+1 < len(queryParts)):
-            if(queryParts[i+1] == "<" or queryParts[i+1] == ">"):
-                condition = queryParts[i]
-                amount = queryParts[i+2]
-
-                # Set the operator
-                lessThanOperator = False
-                if(queryParts[i+1] == "<"):
-                    lessThanOperator = True
-
-                if(condition == "date"):
-                    # do date search ############
-                    pass
-                elif(condition == "price"):
-                    pass
-                    # do price search ############
-                elif(condition == "score"):
-                    pass
-                    # do score search ############
-                else:
-                    print("ERROR: Unknown query condition.")
-                    break
-
-                # Print the statement
-                if(lessThanOperator):
-                    print("SPECIAL: " + condition + " < " + amount)
-                else:
-                    print("SPECIAL: " + condition + " > " + amount)
-
-                i+=2
-                delimiterFound = True
-
-            elif(queryParts[i+1] == ":"):
-                table = queryParts[i]
-                term = queryParts[i+2]
-
-                # Search only specified tables for the term ############
-                print("Table: " + table + " - Term: " + term)
-
-                i+=2
-                delimiterFound = True
-
-        if(not delimiterFound):
-            # Search all tables for the term ############
-            print(queryParts[i])
-
-        i+=1
-
-    # if query contains ":"
-        # Parse and first half is the db, second half is the key
-
-    # if query contains ":" and " "
-        # Parse and first half is the db, remaining terms are key and cond.
-
-    # if query contains "%" (Wildcard only on end of query)
-        # Query for partial match
-
-    # if query contains >, < or = and # of " " = 2
-        # Ranged query (Price, Date, Score)
-
-    # if query contains >, < or = and # of " " > 2
-        # Ranged query + conditions (Price, Date, Score)
 
     return True # Change this, it was giving bugs with no return
 
@@ -208,6 +250,8 @@ if (__name__ == "__main__"):
     while(not option()):
         pass
 
+    initDB()
     # Process user queries
     while(queryListener()):
         pass
+
