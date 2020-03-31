@@ -84,23 +84,21 @@ def customIn(prompt = ""):
     else:
         return myInput
 
-# Prints the results of query (Brief or Full)
+# Runs a query on the hash database and prints the returned data
 def printQuery(listofIDs):
     # Flag for queries - True is Full, False is brief
     global outputFlag, rw
 
-                                        #### OUTPUT ####
+                                #### OUTPUT ####
     # Brief: review id , the product title and the review score of all matching reviews.
     # Full: output will include all review fields (All data from rw.idx on key id)
 
     # Removes the trailing \r from decoding (Database returns byte value)
     for ID in listofIDs:
 
-        Key = ID.replace('\r', '')
-
         # Point cursor to the provided ID in the reviews database
         curs = rw.cursor()
-        result = curs.set(Key.encode("utf-8"))
+        result = curs.set(ID.encode("utf-8"))
         curs.close()
 
         # If the ID exists -> get data!
@@ -124,18 +122,60 @@ def printQuery(listofIDs):
 
             else: # PRINT: FULL SUMMARY
 
+                print("\nFull Summary: ")
+                print(value)
                 # for term in value:
-                #     print("\n" + str(term))
-
-                # Grab the desired data and print
-                Full_Summary = "Make the full summary"
-                print(Full_Summary)
+                #     print(str(term))
 
         else:
             print("ERROR: PrintQuery")
+    print("\nTotal number of hits: " + str(len(listofIDs)))
+
+# Given a specified database in a query, return the pointer
+def determineDB(database):
+    global pt, rt, sc
+
+    if database == "pterm":
+        return pt
+    elif database == "rterm":
+        return rt
+    elif database == "score":
+        return sc
+    else:
+        print("Not a valid database")
+
+# Runs a query on the B+-Tree database 's given a specific key returning the IDs
+def runQuery(database, query):
+    global pt, rt, sc
+
+    db = determineDB(database)
+    if (db is None):
+        return
+
+    curs = db.cursor()
+    result = curs.set(query.encode("utf-8"))
+    listofIDs = list()
+
+    if result != None:
+        print("\nList of all reviews found using input '" + query + "'")
+
+        while result != None:
+            if(str(result[0].decode("utf-8")) != query):
+                break
+
+            # Only keep track of new IDs! (Not sure if we should do this)
+            ReviewID = str(result[1].decode("utf-8"))
+            ReviewID = ReviewID.replace('\r', '')
+
+            if ReviewID not in listofIDs:
+                listofIDs.append(ReviewID)
+
+            result = curs.next()
+    curs.close()
+    return listofIDs # Returns a list of the ID's that matched (Exact)
 
 # Runs the original query to retrieve Review ID
-def runQuery(query):
+def testQuery(query):
     global pt, rt, sc
 
         #### NOTE ####         [key        , data              ]
@@ -199,13 +239,49 @@ def runQuery(query):
     # if listofIDs:
     #     printQuery(listofIDs)
 
-
-
-
     return True
 
+# Intersects lists to weed out duplicates and only take overlapped ID's
+def intersect(list1, list2, list3):
+    tempList = list()
+
+    if list1 and list2: # # Non empty intersect of 2 lists
+        tempList =  list(set(list1) & set(list2))
+        print("stage 1: ")
+        print(tempList)
+
+    elif not list1: # List 1 is empty
+        tempList = list2
+        print("stage 2: ")
+        print(tempList)
+    elif not list2: # List 2 is empty
+        tempList = list1
+        print("stage 3: ")
+        print(tempList)
+    elif not list1 and not list2: # Both are empty -> return third list
+        print("stage 4: ")
+        print(tempList)
+        return list3
+
+    if not list3: # List 3 is empty
+        print("stage 5: ")
+        print(tempList)
+        return tempList
+
+    else: # Non empty intersect of 2 lists
+        print("stage 6: ")
+        print(tempList)
+        return list(set(tempList) & set(list3))
+
+# Unions lists taking all ID's and removing duplicates
+def union(list1, list2, list3):
+    temp_list = list(set(list1) | set(list2))
+    final_list = list(set(temp_list) | set(list3))
+    return final_list
+
+# Checks the query for various input types, wild cards and conditions
 def checkQuery(query):
-    runQuery(query)
+
     ##### Some notes from building the queries in PT 2 as well as possible breakdown ######
     # All matches are case-insensitive, query has been passed in casted to "lowercase"
     # There is one or more spaces between the conditions.
@@ -218,7 +294,112 @@ def checkQuery(query):
     # You can assume every query has at least one condition on an indexed column,
     # meaning the conditions on price and date can only be used if a condition on review/product terms or review scores is also present.
 
-    return True # Change this, it was giving bugs with no return
+    queryParts = []
+    initQuerySplit = query.split()
+
+    for i in initQuerySplit:
+        if(i.find(":") > 0):
+            first, second = i.split(":")
+            queryParts.append(first)
+            queryParts.append(":")
+            queryParts.append(second)
+        elif(i.find("<") > 0):
+            first, second = i.split("<")
+            queryParts.append(first)
+            queryParts.append("<")
+            queryParts.append(second)
+        elif(i.find(">") > 0):
+            first, second = i.split(">")
+            queryParts.append(first)
+            queryParts.append(">")
+            queryParts.append(second)
+        else:
+            queryParts.append(i)
+
+
+    print("\nDeconstructed Query:")
+    i=0
+    term = ""
+    condition = ""
+    amount = ""
+
+    while i < len(queryParts):
+        delimiterFound = False
+
+        # Range Conditions
+        # Note: to ensure we don't attempt to query out of range, we add "i+1 < len(queryParts)"
+        if(i+1 < len(queryParts)):
+            if(queryParts[i+1] == "<" or queryParts[i+1] == ">"):
+                condition = queryParts[i]
+                amount = queryParts[i+2]
+
+                # Set the operator
+                lessThanOperator = False
+                if(queryParts[i+1] == "<"):
+                    lessThanOperator = True
+
+                if(condition == "date"):
+                    # do date search ############
+                    pass
+                elif(condition == "price"):
+                    pass
+                    # do price search ############
+                elif(condition == "score"):
+                    pass
+                    # do score search ############
+                else:
+                    print("ERROR: Unknown query condition.")
+                    break
+
+                # Print the statement
+                if(lessThanOperator):
+                    print("SPECIAL: " + condition + " < " + amount)
+                else:
+                    print("SPECIAL: " + condition + " > " + amount)
+
+                i+=2
+                delimiterFound = True
+
+            elif(queryParts[i+1] == ":"):
+                table = queryParts[i]
+                term = queryParts[i+2]
+
+                # Search only specified tables for the term ############
+                print("Table: " + table + " - Term: " + term)
+                ListofIDs = runQuery(table, term)
+                printQuery(ListofIDs)
+
+                i+=2
+                delimiterFound = True
+
+        # Search all tables for the term ############
+        if(not delimiterFound):
+
+            # Get a list of all review ID's from each table with the key
+            ptermList = runQuery("pterm", queryParts[i])
+            rtermList = runQuery("rterm", queryParts[i])
+            scoreList = runQuery("score", queryParts[i])
+            ListofIDs = union(ptermList, rtermList, scoreList)
+
+            # Prints the summary of the common ID's (union) b/t the db's
+            printQuery(ListofIDs)
+
+        i+=1
+
+    # if query contains ":"
+        # Parse and first half is the db, second half is the key
+
+    # if query contains ":" and " "
+        # Parse and first half is the db, remaining terms are key and cond.
+
+    # if query contains "%" (Wildcard only on end of query)
+        # Query for partial match
+
+    # if query contains >, < or = and # of " " = 2
+        # Ranged query (Price, Date, Score)
+
+    # if query contains >, < or = and # of " " > 2
+        # Ranged query + conditions (Price, Date, Score)
 
 # Handles queries and navigation of user input for Part 2
 def queryListener():
@@ -238,8 +419,6 @@ def queryListener():
         checkQuery(query.lower()) # Return checkQuery and make it return T or F depending on state?
         return True
 
-    # Eventually change this, but for now just loop through each time
-    return True
 
 if (__name__ == "__main__"):
     # Initialize
@@ -254,4 +433,3 @@ if (__name__ == "__main__"):
     # Process user queries
     while(queryListener()):
         pass
-
