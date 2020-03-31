@@ -1,1 +1,0 @@
-This folder will be populated upon runtime with the sorted data using the sort command from python to remove any duplicates and only take unique rows.
