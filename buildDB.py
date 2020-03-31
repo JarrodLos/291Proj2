@@ -2,19 +2,19 @@
 from bsddb3 import db
 import subprocess
 
-# Format file data for splitting data into db_load formatted
-def formatDBdata(fileName):
-    subprocess.call(["./break.pl", fileName])
+# # Format file data for splitting data into db_load formatted
+# def formatDBdata(fileName):
+#     subprocess.call(["./filebreak.pl", fileName])
 
 # Format file name to a database type (.txt -> .idx)
 def formatDBname(fileName):
-    if (fileName == "sorted_pterms.txt"):
+    if (fileName == "pterms.txt"):
         return "Index/pt.idx"
-    elif (fileName == "sorted_rterms.txt"):
+    elif (fileName == "rterms.txt"):
             return "Index/rt.idx"
     elif (fileName == "reviews.txt"):
             return "Index/rw.idx"
-    elif (fileName == "sorted_scores.txt"):
+    elif (fileName == "scores.txt"):
             return "Index/sc.idx"
     else:
         print("ERROR: Cannot format the file " + fileName)
@@ -23,25 +23,40 @@ def formatDBname(fileName):
 def createIndex(fileName):
 
     # Format the name of the database as well as the sorted data
-    formatDBdata(fileName)
     dbName = formatDBname(fileName)
-    fileName = "formatted_" + fileName
 
     # DB Type: Hash
-    if fileName == "formatted_reviews.txt":
+    if fileName == "reviews.txt":
+        subprocess.call(["./filebreak.pl", fileName])
+        fileName = "formatted_" + fileName
         bashCommand = "db_load -T -f Formatted/" +  fileName +  " -t hash " + dbName
         process = subprocess.Popen(bashCommand.split(), stdout=subprocess.PIPE)
 
         # Find a way to handle errors in python not in terminal
         output, error = process.communicate()
 
+        T4 = subprocess.Popen(["db_dump", "-p", "-f", "Dump/review.txt", "Index/rw.idx"])
+
+        # Try the method below but duplicate=0 (Still produce the tripples? )
+
     # DB Type: B+-Tree
     else:
-        bashCommand = "db_load -T -f Formatted/" +  fileName +  " -t btree " + dbName
-        process = subprocess.Popen(bashCommand.split(), stdout=subprocess.PIPE)
+        # bashCommand = "db_load -T -f Formatted/" +  fileName +  " -t btree " + dbName
+        # process = subprocess.Popen(bashCommand.split(), stdout=subprocess.PIPE)
+        # # Find a way to handle errors in python not in terminal
+        # output, error = process.communicate()
+        file = fileName.split(".")
+        Path = "RawData/" + fileName
+        DumpPath = "Dump/" + fileName
 
-        # Find a way to handle errors in python not in terminal
-        output, error = process.communicate()
+        T1 = subprocess.Popen(['cat', Path], stdout=subprocess.PIPE, universal_newlines=True)
+        T2 = subprocess.Popen(["sort", "-u"], stdin=T1.stdout, stdout=subprocess.PIPE)
+        T3 = subprocess.Popen(["./break.pl"], stdin=T2.stdout, stdout=subprocess.PIPE)
+        T4 = subprocess.Popen(["db_load", "-c", "duplicates=1", "-T", "-t", "btree", dbName], stdin=T3.stdout, stdout=subprocess.PIPE)
+        T4.wait()
+        T5 = subprocess.Popen(["db_dump", "-p", "-f", DumpPath, dbName])
+
+
 
 # Sorts all the files expected for the group 2 project (pterms, rterms and scores)
 def sortAllFiles():
@@ -63,5 +78,8 @@ def sortAllFiles():
         createIndex(file)
 
 if (__name__ == "__main__"):
-    sortAllFiles()
+    #sortAllFiles()
+    fileName = ["scores.txt", "pterms.txt", "rterms.txt", "reviews.txt"]
+    for file in fileName:
+        createIndex(file)
     print("\nAll the files have been sorted and indexed!")
