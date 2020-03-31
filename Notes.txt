@@ -1,3 +1,8 @@
+Uncertainties:
+- Is it fine to filter through the rw.idx "data" to get score, using the index is 	inconsistent.
+
+- Should we remove duplicate keys when printing the reviews? (Ex. From a query in any of the B+- Tree databases, multiple copies of a review ID may be returned, should we still print all the copies or remove duplicates.)
+
 General Notes:
  * reviews.txt: For each review a unique review id, a product id, a product title, a product price, userid and profile name of the reviewer, helpfulness of the review, review score, review timestamp, summary and full text of the review.
 
@@ -11,7 +16,7 @@ General Notes:
 * db_load: sudo apt install db-util
 
 TODO: Part 1
-  - [ ] Sort data files: (Keep only unique rows using linux cmd "sort")
+  - [X] Sort data files: (Keep only unique rows using linux cmd "sort")
         - Use: sort -u myfile.txt -o sortedfile.txt (List only the unique lines (rows))
         - [X] reviews.txt (Provided sorted from eclass)
         - [X] scores.txt
@@ -41,7 +46,9 @@ Note:
 
 TODO: Part 2
     - [X] Change created file paths to make less crowded (Low low low priority)
-    - [ ] Test the .idx files with the db_dump
+    - [X] Test the .idx files with the db_dump
+
+    Different cursor methods: https://www.jcea.es/programacion/pybsddb_doc/dbcursor.html
 
     Query
     1) pterm:guitar
@@ -99,6 +106,35 @@ TODO: Part 2
     command		::= query | modeChange
 
     When a query can be evaluated using multiple strategies, your evaluation should select the most efficient strategy (i.e., the one expected to be the fastest) as much as possible. For example, for Query 1, you can use the index on pterms (i.e. pt.idx) to find the matching review ids, then use the index on review ids (i.e., rw.idx) to find the actual records. For Query 7, you can use the index on score to find the review ids of reviews with score less than 3. You can also use the indexes on pterms and rterms to find the review ids of reviews that have the term guitar. After intersecting the two lists of review ids, you can use the index on review id to find the full records only for review ids in the intersection.
+
+    POINTING THE CURSOR:
+
+    current(flags=0, dlen=-1, doff=-1)¶
+    Returns the key/data pair currently referenced by the cursor. More info…
+
+    next(flags=0, dlen=-1, doff=-1)
+    Position the cursor to the next key/data pair and return it. More info…
+
+    prev(flags=0, dlen=-1, doff=-1)
+    Position the cursor to the previous key/data pair and return it. More info…
+
+    next_dup(flags=0, dlen=-1, doff=-1)
+    If the next key/data pair of the database is a duplicate record for the current key/data pair, the cursor is moved to the next key/data pair of the database, and that pair is returned. More info…
+
+    next_nodup(flags=0, dlen=-1, doff=-1)
+    The cursor is moved to the next non-duplicate key/data pair of the database, and that pair is returned. More info…
+
+    prev_dup(flags=0, dlen=-1, doff=-1)
+    If the previous key/data pair of the database is a duplicate data record for the current key/data pair, the cursor is moved to the previous key/data pair of the database, and that pair is returned. More info…
+
+    prev_nodup(flags=0, dlen=-1, doff=-1)
+    The cursor is moved to the previous non-duplicate key/data pair of the database, and that pair is returned. More info…
+
+    set(key, flags=0, dlen=-1, doff=-1)
+    Move the cursor to the specified key in the database and return the key/data pair found there. More info…
+
+    set_range(key, flags=0, dlen=-1, doff=-1)
+    Identical to set() except that in the case of the BTree access method, the returned key/data pair is the smallest key greater than or equal to the specified key (as determined by the comparison function), permitting partial key matches and range searches. More info…
 
     CMPUT 291 - Winter 2020
     A marking rubric for Mini-project 2
