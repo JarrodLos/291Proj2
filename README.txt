@@ -17,6 +17,4 @@ Part 2: "python3 main.py" and select option "B" to run queries
 NOTES: 
 
  Part 1
- - Was done through python, the code makes the calls to the OS referencing the original text files. These text files must be placed into      the "RawData" folder! 
-
- - Folders organize the steps taken in sorting, formatting and building the indexs from the text files. 
+ - Was done through python, the code makes the calls to the OS referencing the original text files. These text files must be placed into the "RawData" folder to be properly processed. 
