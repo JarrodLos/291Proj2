@@ -1,0 +1,1 @@
+This folder will be populated on runtime with the .txt files created from the .idx files using dp_dump.
