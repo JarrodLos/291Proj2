@@ -92,44 +92,48 @@ def printQuery(listofIDs):
                                 #### OUTPUT ####
     # Brief: review id , the product title and the review score of all matching reviews.
     # Full: output will include all review fields (All data from rw.idx on key id)
+    if(listofIDs == None):
+        print("No Results Found!")
+        return
 
-    # Removes the trailing \r from decoding (Database returns byte value)
-    for ID in listofIDs:
+    else:
+        # Removes the trailing \r from decoding (Database returns byte value)
+        for ID in listofIDs:
 
-        # Point cursor to the provided ID in the reviews database
-        curs = rw.cursor()
-        result = curs.set(ID.encode("utf-8"))
-        curs.close()
+            # Point cursor to the provided ID in the reviews database
+            curs = rw.cursor()
+            result = curs.set(ID.encode("utf-8"))
+            curs.close()
 
-        # If the ID exists -> get data!
-        if (result != None):
-            value =result[1].decode("utf-8")
-            value = value.split(",")
+            # If the ID exists -> get data!
+            if (result != None):
+                value =result[1].decode("utf-8")
+                value = value.split(",")
 
-            # Inconsistency in the indexs of reviews data -> Search for score(ex. 5.0)
-            for i in value:
-                if (len(i) == 3) and (int(i[0]) <= 5) and (i[1] == "."):
-                    score = str(i)
-                    break
+                # Inconsistency in the indexs of reviews data -> Search for score(ex. 5.0)
+                for i in value:
+                    if (len(i) == 3) and (int(i[0]) <= 5) and (i[1] == "."):
+                        score = str(i)
+                        break
 
-            if (outputFlag is False): # PRINT: BRIEF SUMMARY
+                if (outputFlag is False): # PRINT: BRIEF SUMMARY
 
-                # Grab the desired data and print
-                Brief_Summary = ("\nReview ID: " + str(result[0].decode("utf-8"))
-                                + "\nProduct Title: " + str(value[1])
-                                + "\nReview Score: " + score)
-                print(Brief_Summary)
+                    # Grab the desired data and print
+                    Brief_Summary = ("\nReview ID: " + str(result[0].decode("utf-8"))
+                                    + "\nProduct Title: " + str(value[1])
+                                    + "\nReview Score: " + score)
+                    print(Brief_Summary)
 
-            else: # PRINT: FULL SUMMARY
+                else: # PRINT: FULL SUMMARY
 
-                print("\nFull Summary: ")
-                print(value)
-                # for term in value:
-                #     print(str(term))
+                    print("\nFull Summary: ")
+                    print(value)
+                    # for term in value:
+                    #     print(str(term))
 
-        else:
-            print("ERROR: PrintQuery")
-    print("\nTotal number of hits: " + str(len(listofIDs)))
+            else:
+                print("ERROR: PrintQuery")
+        print("\nTotal number of hits: " + str(len(listofIDs)))
 
 # Given a specified database in a query, return the pointer
 def determineDB(database):
@@ -143,6 +147,42 @@ def determineDB(database):
         return sc
     else:
         print("Not a valid database")
+
+# Range Query - copy below function, apply in the greater than, less than from the query deconstruction below! use the set_range()
+
+# make it take in date, price or score, then put it through an if statement to see which one to do
+# score should be easy, you have a table just for that, date and range will be fun bc they are baked into the review table
+
+# if it gives me a score of 3, cast it to 3.0 bc thats how its stored in the db
+def runRangeQuery(database, query, dateLo = None, dateUp = None, priceLo = None, priceUp = None, scoreLo = None, scoreUp = None):
+    global pt, rt, sc
+
+    db = determineDB(database)
+    if (db is None):
+        return
+
+    curs = db.cursor()
+    result = curs.set(query.encode("utf-8"))
+    listofIDs = list()
+
+    if result != None:
+        #DEBUG
+        # print("\nList of all reviews found using input '" + query + "'")
+
+        while result != None:
+            if(str(result[0].decode("utf-8")) != query):
+                break
+
+            # Only keep track of new IDs! (Not sure if we should do this)
+            ReviewID = str(result[1].decode("utf-8"))
+            ReviewID = ReviewID.replace('\r', '')
+
+            if ReviewID not in listofIDs:
+                listofIDs.append(ReviewID)
+
+            result = curs.next()
+    curs.close()
+    return listofIDs # Returns a list of the ID's that matched (Exact)
 
 # Runs a query on the B+-Tree database 's given a specific key returning the IDs
 def runQuery(database, query):
@@ -249,7 +289,6 @@ def intersect(list1, list2, list3):
         tempList =  list(set(list1) & set(list2))
         print("stage 1: ")
         print(tempList)
-
     elif not list1: # List 1 is empty
         tempList = list2
         print("stage 2: ")
@@ -275,8 +314,30 @@ def intersect(list1, list2, list3):
 
 # Unions lists taking all ID's and removing duplicates
 def union(list1, list2, list3):
-    temp_list = list(set(list1) | set(list2))
-    final_list = list(set(temp_list) | set(list3))
+    final_list = []
+
+    if(list1 != None and list2 != None and list3 != None):
+        temp_list = list(set(list1) | set(list2))
+        final_list = list(set(temp_list) | set(list3))
+
+    elif(list1 != None and list2 != None and list3 == None):
+        final_list = list(set(list1) | set(list2))
+
+    elif(list1 != None and list2 == None and list3 != None):
+        final_list = list(set(list1) | set(list3))
+
+    elif(list1 == None and list2 != None and list3 != None):
+        final_list = list(set(list3) | set(list2))
+
+    elif(list1 != None and list2 == None and list3 == None):
+        final_list = list1
+
+    elif(list1 == None and list2 != None and list3 == None):
+        final_list = list2
+
+    elif(list1 == None and list2 == None and list3 != None):
+        final_list = list3
+
     return final_list
 
 # Checks the query for various input types, wild cards and conditions
@@ -293,6 +354,16 @@ def checkQuery(query):
 
     # You can assume every query has at least one condition on an indexed column,
     # meaning the conditions on price and date can only be used if a condition on review/product terms or review scores is also present.
+
+    dateLo = None
+    dateUp = None
+    priceLo = None
+    priceUp = None
+    scoreLo = None
+    scoreUp = None
+    ptermQueryList = []
+    rtermQueryList = []
+    scoreQueryList = []
 
     queryParts = []
     initQuerySplit = query.split()
@@ -317,7 +388,6 @@ def checkQuery(query):
             queryParts.append(i)
 
 
-    print("\nDeconstructed Query:")
     i=0
     term = ""
     condition = ""
@@ -339,52 +409,107 @@ def checkQuery(query):
                     lessThanOperator = True
 
                 if(condition == "date"):
-                    # do date search ############
-                    pass
+                    if(lessThanOperator):
+                        dateUp = amount
+                    else:
+                        dateLo = amount
+
                 elif(condition == "price"):
-                    pass
-                    # do price search ############
+                    if(lessThanOperator):
+                        priceUp = amount
+                    else:
+                        priceLo = amount
+
                 elif(condition == "score"):
-                    pass
-                    # do score search ############
+                    if(lessThanOperator):
+                        scoreUp = amount
+                    else:
+                        scoreLo = amount
+
                 else:
-                    print("ERROR: Unknown query condition.")
+                    print("ERROR: Unknown condition: " + condition)
                     break
 
-                # Print the statement
-                if(lessThanOperator):
-                    print("SPECIAL: " + condition + " < " + amount)
-                else:
-                    print("SPECIAL: " + condition + " > " + amount)
+                # Print the statement, just for debug vvv
+                # if(lessThanOperator):
+                #     print("SPECIAL: " + condition + " < " + amount)
+                # else:
+                #     print("SPECIAL: " + condition + " > " + amount)
+                # Print the statement, just for debug ^^^
 
                 i+=2
                 delimiterFound = True
 
+            # Search only specified tables for the term
             elif(queryParts[i+1] == ":"):
                 table = queryParts[i]
                 term = queryParts[i+2]
 
-                # Search only specified tables for the term ############
-                print("Table: " + table + " - Term: " + term)
-                ListofIDs = runQuery(table, term)
-                printQuery(ListofIDs)
+                #DEBUG
+                # print("Run a search on " + table + " using the term " + term)
+
+                # ListofIDs = runQuery(table, term)
+                # printQuery(ListofIDs)
+
+
+                # Add the term to the specified table to query
+                if(table == "pterm"):
+                    ptermQueryList.append(term)
+                elif(table == "rterm"):
+                    rtermQueryList.append(term)
+                elif(table == "score"):
+                    scoreQueryList.append(term)
+                else:
+                    print("ERROR: Unknown table: " + term)
+                    break
 
                 i+=2
                 delimiterFound = True
 
-        # Search all tables for the term ############
+        # Search all tables for the term
         if(not delimiterFound):
+            term = queryParts[i]
+
+            #DEBUG
+            # print("Run a search on ALL tables using the term " + term)
 
             # Get a list of all review ID's from each table with the key
-            ptermList = runQuery("pterm", queryParts[i])
-            rtermList = runQuery("rterm", queryParts[i])
-            scoreList = runQuery("score", queryParts[i])
-            ListofIDs = union(ptermList, rtermList, scoreList)
+            # ptermList = runQuery("pterm", term)
+            # rtermList = runQuery("rterm", term)
+            # scoreList = runQuery("scores", term)
 
-            # Prints the summary of the common ID's (union) b/t the db's
-            printQuery(ListofIDs)
+            # We want to search all tables for the term
+            ptermQueryList.append(term)
+            rtermQueryList.append(term)
+            scoreQueryList.append(term)
+
+            # The Code below is moved down
+            # ListofIDs = union(ptermList, rtermList, scoreList)
+            #
+            # # Prints the summary of the common ID's (union) b/t the db's
+            # printQuery(ListofIDs)
 
         i+=1
+
+    # After applying the conditions, and after collecting all of the search terms, then run the query
+    outputList = []
+
+    for newTerm in ptermQueryList:
+        outputList = outputList + runRangeQuery("pterm", newTerm, dateLo, dateUp, priceLo, priceUp, scoreLo, scoreUp)
+    for newTerm in rtermQueryList:
+        outputList = outputList + runRangeQuery("rterm", newTerm, dateLo, dateUp, priceLo, priceUp, scoreLo, scoreUp)
+    for newTerm in scoreQueryList:
+        outputList = outputList + runRangeQuery("score", newTerm, dateLo, dateUp, priceLo, priceUp, scoreLo, scoreUp)
+
+    # Remove duplicates
+    outputList = list(dict.fromkeys(outputList))
+
+    # Prints the summary of the common ID's (union) b/t the db's
+    printQuery(outputList)
+
+
+
+
 
     # if query contains ":"
         # Parse and first half is the db, second half is the key
