@@ -1,5 +1,6 @@
 #!/usr/bin/python
 from bsddb3 import db
+import datetime
 import subprocess
 
 # Initial print of commands to guide the user through the program
@@ -84,56 +85,55 @@ def customIn(prompt = ""):
     else:
         return myInput
 
+# Return a date object from a user inputted date
+def formatDate(date):
+    Year, Month, Day = date.split("/")
+    timestamp = datetime.datetime(int(Year), int(Month), int(Day), 0, 0).timestamp()
+    return timestamp
+
 # Runs a query on the hash database and prints the returned data
 def printQuery(listofIDs):
     # Flag for queries - True is Full, False is brief
     global outputFlag, rw
 
-                                #### OUTPUT ####
-    # Brief: review id , the product title and the review score of all matching reviews.
-    # Full: output will include all review fields (All data from rw.idx on key id)
-    if(listofIDs == None):
-        print("No Results Found!")
-        return
+    # Invalid query
+    if listofIDs is None or not listofIDs:
+        return print("\nNo products or reviews meet all the criteria!")
 
-    else:
-        # Removes the trailing \r from decoding (Database returns byte value)
-        for ID in listofIDs:
+    for ID in listofIDs:
 
-            # Point cursor to the provided ID in the reviews database
-            curs = rw.cursor()
-            result = curs.set(ID.encode("utf-8"))
-            curs.close()
+        # Point cursor to the provided ID in the reviews database
+        curs = rw.cursor()
+        result = curs.set(ID.encode("utf-8"))
+        curs.close()
 
-            # If the ID exists -> get data!
-            if (result != None):
-                value =result[1].decode("utf-8")
-                value = value.split(",")
+        # If the ID exists -> get data!
+        if (result != None):
+            value = result[1].decode("utf-8")
+            value = value.split(",")
 
-                # Inconsistency in the indexs of reviews data -> Search for score(ex. 5.0)
-                for i in value:
-                    if (len(i) == 3) and (int(i[0]) <= 5) and (i[1] == "."):
-                        score = str(i)
-                        break
+            # Inconsistency in the indexs of reviews data -> Search for score(ex. 5.0)
+            for i in value:
+                if (len(i) == 3) and (int(i[0]) <= 5) and (i[1] == "."):
+                    score = str(i)
+                    break
 
-                if (outputFlag is False): # PRINT: BRIEF SUMMARY
+            if (outputFlag is False): # PRINT: BRIEF SUMMARY
 
-                    # Grab the desired data and print
-                    Brief_Summary = ("\nReview ID: " + str(result[0].decode("utf-8"))
-                                    + "\nProduct Title: " + str(value[1])
-                                    + "\nReview Score: " + score)
-                    print(Brief_Summary)
+                # Grab the desired data and print
+                Brief_Summary = ("\nReview ID: " + str(result[0].decode("utf-8"))
+                                + "\nProduct Title: " + str(value[1])
+                                + "\nReview Score: " + score)
+                print(Brief_Summary)
 
-                else: # PRINT: FULL SUMMARY
+            else: # PRINT: FULL SUMMARY
 
-                    print("\nFull Summary: ")
-                    print(value)
-                    # for term in value:
-                    #     print(str(term))
+                print("\nFull Summary: ")
+                print(value)
 
-            else:
-                print("ERROR: PrintQuery")
-        print("\nTotal number of hits: " + str(len(listofIDs)))
+        else:
+            print("ERROR: PrintQuery")
+    print("\nTotal number of hits: " + str(len(listofIDs)))
 
 # Given a specified database in a query, return the pointer
 def determineDB(database):
@@ -147,61 +147,77 @@ def determineDB(database):
         return sc
     else:
         print("Not a valid database")
+        return None
 
-# Range Query - copy below function, apply in the greater than, less than from the query deconstruction below! use the set_range()
+# Given no specified database to check, check all!
+def checkAllDB(query):
+    ptermList = runQuery("pterm", query)
+    rtermList = runQuery("rterm", query)
+    scoreList = []
 
-# make it take in date, price or score, then put it through an if statement to see which one to do
-# score should be easy, you have a table just for that, date and range will be fun bc they are baked into the review table
+    # Merge the list of ID's from all 3 databases
+    return union(ptermList, rtermList, scoreList)
 
-# if it gives me a score of 3, cast it to 3.0 bc thats how its stored in the db
-def runRangeQuery(database, query, dateLo = None, dateUp = None, priceLo = None, priceUp = None, scoreLo = None, scoreUp = None):
-    global pt, rt, sc
-
-    db = determineDB(database)
-    if (db is None):
-        return
-
-    curs = db.cursor()
-    result = curs.set(query.encode("utf-8"))
-    listofIDs = list()
-
-    if result != None:
-        #DEBUG
-        # print("\nList of all reviews found using input '" + query + "'")
-
-        while result != None:
-            if(str(result[0].decode("utf-8")) != query):
-                break
-
-            # Only keep track of new IDs! (Not sure if we should do this)
-            ReviewID = str(result[1].decode("utf-8"))
-            ReviewID = ReviewID.replace('\r', '')
-
-            if ReviewID not in listofIDs:
-                listofIDs.append(ReviewID)
-
-            result = curs.next()
-    curs.close()
-    return listofIDs # Returns a list of the ID's that matched (Exact)
-
-# Runs a query on the B+-Tree database 's given a specific key returning the IDs
+# Runs a basic query on the B+-Tree database's given a specific key and database
 def runQuery(database, query):
     global pt, rt, sc
 
     db = determineDB(database)
     if (db is None):
-        return
+        return # Provided db name is not valid
 
     curs = db.cursor()
-    result = curs.set(query.encode("utf-8"))
     listofIDs = list()
 
-    if result != None:
-        print("\nList of all reviews found using input '" + query + "'")
+    # Bool values used to control query type (Regular or Ranged)
+    score = False
+    greaterThan = False
+
+    # Check for wildcard
+    if (query.find("%") > 0):
+        result = curs.set_range(query.encode("utf-8"))
+
+    # Check if its a range search with score
+    elif db == sc:
+        condition, key = query.split()
+        score = True
+        greaterThan = False
+
+        if condition == ">":
+            greaterThan = True
+            start = str( int(key) + 1 )
+            end = curs.last()
+            result = curs.set_range(start.encode("utf-8"))
+        else:
+            end = curs.set_range(key.encode("utf-8"))
+            result = curs.first()
+
+    # Regular search
+    else:
+        result = curs.set(query.encode("utf-8"))
+
+    if (result != None): # Regular Query
 
         while result != None:
-            if(str(result[0].decode("utf-8")) != query):
+
+            # Break for regular query
+            if((str(result[0].decode("utf-8")) != query) and not score):
                 break
+
+            # Break for range query
+            if (score and not greaterThan): # data < key
+                num = result[0].decode("utf-8").split(".")
+                if result == end:
+                    break
+
+            # Break for range query
+            elif score and greaterThan: # data > key
+                if result == end:
+                    ReviewID = str(result[1].decode("utf-8"))
+                    ReviewID = ReviewID.replace('\r', '')
+                    if ReviewID not in listofIDs:
+                        listofIDs.append(ReviewID)
+                    break
 
             # Only keep track of new IDs! (Not sure if we should do this)
             ReviewID = str(result[1].decode("utf-8"))
@@ -211,320 +227,300 @@ def runQuery(database, query):
                 listofIDs.append(ReviewID)
 
             result = curs.next()
-    curs.close()
-    return listofIDs # Returns a list of the ID's that matched (Exact)
-
-# Runs the original query to retrieve Review ID
-def testQuery(query):
-    global pt, rt, sc
-
-        #### NOTE ####         [key        , data              ]
-    # rw.idx -> (review ids)   [review id  , full review record]
-    # rt.idx -> (review terms) [terms      , review id         ]
-    # pt.idx -> (title terms)  [terms      , review id         ]
-    # sc.idx -> (scores)       [score      , review id         ]
-
-    # Keys: rt, pt & sc can have duplicates, rw cannot
-    # Data: only the ID for rt, pt & sc, you have to iterate through rw data
-
-                ########### Query 1) pterm:guitar ###########
-    curs = pt.cursor()
-    query = "guitar"
-    result = curs.set(query.encode("utf-8"))
-
-    if result != None:
-        print("\nList of all reviews found using input '" + query + "'")
-        listofIDs = list()
-
-        while result != None:
-            if(str(result[0].decode("utf-8")) != query):
-                break
-
-            # Only keep track of new IDs! (Not sure if we should do this)
-            ReviewID = str(result[1].decode("utf-8"))
-            if ReviewID not in listofIDs:
-                listofIDs.append(ReviewID)
-
-            result = curs.next()
 
     curs.close()
+    return listofIDs
 
-    # If list is not empty, get the summaries for the ID's
-    if listofIDs:
-        printQuery(listofIDs)
+# Runs queries to find results that match the ranges provided (Date and Price)
+def hashQuery(type, userKey, listofIDs):
+    global outputFlag, rw
 
-                ########### Query 2) rterm:great ###########
-    # curs = rt.cursor()
-    # query = "great"
-    # result = curs.set(query.encode("utf-8"))
-    #
-    # if result != None:
-    #     print("\nList of all reviews found using input '" + query + "'")
-    #     listofIDs = list()
-    #
-    #     while result != None:
-    #         if(str(result[0].decode("utf-8")) != query):
-    #             break
-    #
-    #         # Only keep track of new IDs! (Replicating ID's consume efficiency)
-    #         ReviewID = str(result[1].decode("utf-8"))
-    #         if ReviewID not in listofIDs:
-    #             listofIDs.append(ReviewID)
-    #
-    #         result = curs.next()
-    #
-    # curs.close()
-    #
-    # # If list is not empty, get the summaries for the ID's
-    # if listofIDs:
-    #     printQuery(listofIDs)
+    # Invalid query with the B+- Trees
+    if listofIDs is None or not listofIDs:
+        print("hashQuery: No ID's to query")
+        return
 
-    return True
+    DatePriceFlag = False # True for Date; False for Price
+    condition, key = userKey.split()
+    greaterThan = False
+
+    if condition == ">":
+        greaterThan = True
+
+    if type == "date":
+        DatePriceFlag = True
+        timestamp = formatDate(key) # Gets timestamp
+
+    elif type == "price":
+        range = key
+        DatePriceFlag = False
+
+    finalListofIDs = []
+
+    # Iterate through ID's and save which ones are within range
+    for ID in listofIDs:
+
+        # Point cursor to the provided ID in the reviews database
+        curs = rw.cursor()
+        result = curs.set(ID.encode("utf-8"))
+        curs.close()
+
+        # If the ID exists -> get data!
+        if (result != None):
+
+            value = result[1].decode("utf-8")
+            value = value.split(",")
+
+            if DatePriceFlag: # True -> Date Search
+                for i in value:
+                    line = str(i.replace('\r', ''))
+
+                    # IF: len 10 digits (len of epoch time now) && all digits
+                    if (line.isdigit() and len(line) <= 10 and len(line) > 4):
+
+                        # Review data passes check -> Save ID
+                        pulledData = int(str(line))
+                        keyRange = int(timestamp)
+
+                        if (greaterThan) and (pulledData > keyRange):
+                            finalListofIDs.append(ID)
+                            break
+
+                        elif not greaterThan and (pulledData < keyRange):
+                            finalListofIDs.append(ID)
+                            break
+
+            elif not  DatePriceFlag: # False -> Price Search
+                for i in value:
+                    line = i.replace('\r', '')
+                    index = len(line) - 3 # Where the "." is expected
+
+                    if (index > 0) and (line.find(".", index) != -1):
+                        parse = i.split(".", 1)
+
+                        # IF: len > 0.00 && len after period (00) equals && 3rd index from last is decimal .00
+                        if (len(line) >= 4) and (len(parse[1]) == 2) and (i[len(line) - 3] == "."):
+
+                            # Review data passes check -> Save ID
+                            pulledData = float(str(line))
+                            keyRange = float(range)
+
+                            if (greaterThan) and (pulledData > keyRange):
+                                finalListofIDs.append(ID)
+                                break
+
+                            elif not greaterThan and (pulledData < keyRange):
+                                finalListofIDs.append(ID)
+                                break
+
+        else:
+            print("ERROR: hashQuery")
+
+    return finalListofIDs
 
 # Intersects lists to weed out duplicates and only take overlapped ID's
-def intersect(list1, list2, list3):
+def intersect(list1, list2):
     tempList = list()
 
-    if list1 and list2: # # Non empty intersect of 2 lists
-        tempList =  list(set(list1) & set(list2))
-        print("stage 1: ")
-        print(tempList)
-    elif not list1: # List 1 is empty
-        tempList = list2
-        print("stage 2: ")
-        print(tempList)
-    elif not list2: # List 2 is empty
-        tempList = list1
-        print("stage 3: ")
-        print(tempList)
-    elif not list1 and not list2: # Both are empty -> return third list
-        print("stage 4: ")
-        print(tempList)
-        return list3
+    if not list1: # List 1 is empty -> Return List 2
+        return list2
 
-    if not list3: # List 3 is empty
-        print("stage 5: ")
-        print(tempList)
-        return tempList
+    elif not list2:  # List 2 is empty -> Return List 1
+        return list1
 
-    else: # Non empty intersect of 2 lists
-        print("stage 6: ")
-        print(tempList)
-        return list(set(tempList) & set(list3))
+    else: # Return the intersect of both lists
+        return list(set(list1) & set(list2))
 
 # Unions lists taking all ID's and removing duplicates
 def union(list1, list2, list3):
-    final_list = []
-
-    if(list1 != None and list2 != None and list3 != None):
-        temp_list = list(set(list1) | set(list2))
-        final_list = list(set(temp_list) | set(list3))
-
-    elif(list1 != None and list2 != None and list3 == None):
-        final_list = list(set(list1) | set(list2))
-
-    elif(list1 != None and list2 == None and list3 != None):
-        final_list = list(set(list1) | set(list3))
-
-    elif(list1 == None and list2 != None and list3 != None):
-        final_list = list(set(list3) | set(list2))
-
-    elif(list1 != None and list2 == None and list3 == None):
-        final_list = list1
-
-    elif(list1 == None and list2 != None and list3 == None):
-        final_list = list2
-
-    elif(list1 == None and list2 == None and list3 != None):
-        final_list = list3
-
+    temp_list = list(set(list1) | set(list2))
+    final_list = list(set(temp_list) | set(list3))
     return final_list
 
-# Checks the query for various input types, wild cards and conditions
-def checkQuery(query):
+# Parse a query into a list
+def parseQuery(query):
 
-    ##### Some notes from building the queries in PT 2 as well as possible breakdown ######
-    # All matches are case-insensitive, query has been passed in casted to "lowercase"
-    # There is one or more spaces between the conditions.
-        # - Parse by spaces, and iterate through to see if it contains anything below?
-
-    # Dates are formatted as yyyy/mm/dd in queries but they are stored as timestamps in the data file
-        # Must be converted to timestamp before a search can be performed
-        # I'll implement this from my code from project 1
-
-    # You can assume every query has at least one condition on an indexed column,
-    # meaning the conditions on price and date can only be used if a condition on review/product terms or review scores is also present.
-
-    dateLo = None
-    dateUp = None
-    priceLo = None
-    priceUp = None
-    scoreLo = None
-    scoreUp = None
-    ptermQueryList = []
-    rtermQueryList = []
-    scoreQueryList = []
-
+    list = query.split()
     queryParts = []
-    initQuerySplit = query.split()
 
-    for i in initQuerySplit:
-        if(i.find(":") > 0):
+    for i in list:
+        GreaterIndex = i.find("<")
+        LesserIndex = i.find(">")
+
+        # Database provided format
+        if (i.find(":") > 0):
             first, second = i.split(":")
             queryParts.append(first)
             queryParts.append(":")
             queryParts.append(second)
-        elif(i.find("<") > 0):
-            first, second = i.split("<")
-            queryParts.append(first)
-            queryParts.append("<")
-            queryParts.append(second)
-        elif(i.find(">") > 0):
-            first, second = i.split(">")
-            queryParts.append(first)
-            queryParts.append(">")
-            queryParts.append(second)
+
+        # Greater than format
+        elif (GreaterIndex >= 0):
+            if (GreaterIndex > 0):
+                first, second = i.split("<")
+                queryParts.append(first)
+                queryParts.append("<")
+
+                if second != '': # Case where {score<, 10}
+                    queryParts.append(second)
+            else:
+                if (len(i) > 1): # Case where {score, <10}
+
+                    first, second = i.split("<")
+                    queryParts.append("<")
+                    queryParts.append(second)
+
+                else: # Case where {score, <, 10}
+                    queryParts.append("<")
+
+        # Less than format
+        elif (LesserIndex >= 0):
+            if (LesserIndex > 0):
+                first, second = i.split(">")
+                queryParts.append(first)
+                queryParts.append(">")
+
+                if second != '': # Case where {score>, 10}
+                    queryParts.append(second)
+            else:
+                if (len(i) > 1): # Case where {score, >10}
+
+                    first, second = i.split(">")
+                    queryParts.append(">")
+                    queryParts.append(second)
+
+                else: # Case where {score, >, 10}
+                    queryParts.append(">")
+
+        # Regular value
         else:
             queryParts.append(i)
 
+    return queryParts
 
-    i=0
-    term = ""
-    condition = ""
-    amount = ""
+# Checks the query for various input types, wild cards and conditions
+def checkQuery(query):
 
-    while i < len(queryParts):
-        delimiterFound = False
+    parsedQuery = parseQuery(query)
+    specialConds = [":", ">", "<"]
+    specialWords = ["date", "price"]
 
-        # Range Conditions
-        # Note: to ensure we don't attempt to query out of range, we add "i+1 < len(queryParts)"
-        if(i+1 < len(queryParts)):
-            if(queryParts[i+1] == "<" or queryParts[i+1] == ">"):
-                condition = queryParts[i]
-                amount = queryParts[i+2]
+    i = 0
 
-                # Set the operator
-                lessThanOperator = False
-                if(queryParts[i+1] == "<"):
-                    lessThanOperator = True
+    rangeQuery = [] # Pull out and save the hash query here
+    ListofIds = []  # Pull out and save the intersect of IDs here
 
-                if(condition == "date"):
-                    if(lessThanOperator):
-                        dateUp = amount
+    # Process one term at a time and group together as neccessary
+    # B+- Tree queries
+    while i < len(parsedQuery):
+
+        word = parsedQuery[i]
+        tempListofIDs = []
+
+        # Word is not a special condition or reserved word
+        if (word not in specialConds) and  (word not in specialWords):
+
+            if (i == 0): # First term in query
+
+                # Guitar
+                if (len(parsedQuery) == 1):
+                    tempListofIDs = checkAllDB(word)
+                    i += 1
+
+                # Ex. Guitar score < 200
+                elif (parsedQuery[i+1] not in specialConds):
+                    tempListofIDs = checkAllDB(word)
+                    i += 1
+
+                # Ex. pterm:guitar OR score<10
+                elif (parsedQuery[i+1] in specialConds):
+                    first = parsedQuery[i]
+                    last = parsedQuery[i+ 2]
+                    cond = parsedQuery[i+1]
+                    i += 3
+
+                    if (cond == ":"): # db:term
+                        tempListofIDs = runQuery(first, last)
+
+                    else: # Score >, < #
+                        key = cond + " " + last
+                        tempListofIDs = runQuery(first, key)
+
+
+            else: # Not the first term
+
+                if (i != (len(parsedQuery) - 1)): # Not the Last term
+
+                    # Ex. something Guitar something
+                    if (parsedQuery[i+1] not in specialConds):
+                        tempListofIDs = checkAllDB(word)
+                        i += 1
+
+                    # something, score, <, something, OR something, db, :, term
                     else:
-                        dateLo = amount
+                        first = parsedQuery[i]
+                        last = parsedQuery[i+ 2]
+                        cond = parsedQuery[i+1]
+                        i += 3
 
-                elif(condition == "price"):
-                    if(lessThanOperator):
-                        priceUp = amount
-                    else:
-                        priceLo = amount
+                        if (cond == ":"): # db:term
+                            tempListofIDs = runQuery(first, last)
 
-                elif(condition == "score"):
-                    if(lessThanOperator):
-                        scoreUp = amount
-                    else:
-                        scoreLo = amount
+                        else: # Score >, < #
+                            key = cond + " " + last
+                            tempListofIDs = runQuery(first, key)
 
-                else:
-                    print("ERROR: Unknown condition: " + condition)
-                    break
+                else: # last term -> Ex. [price, <, 200, guitar]
+                    tempListofIDs = checkAllDB(word)
 
-                # Print the statement, just for debug vvv
-                # if(lessThanOperator):
-                #     print("SPECIAL: " + condition + " < " + amount)
-                # else:
-                #     print("SPECIAL: " + condition + " > " + amount)
-                # Print the statement, just for debug ^^^
+        else: # Reserved words
 
-                i+=2
-                delimiterFound = True
+            if (word in specialWords):
+                rangeQuery.append(parsedQuery[i])
+                rangeQuery.append(parsedQuery[i + 1])
+                rangeQuery.append(parsedQuery[i + 2])
+                i += 3
 
-            # Search only specified tables for the term
-            elif(queryParts[i+1] == ":"):
-                table = queryParts[i]
-                term = queryParts[i+2]
+            else:
+                i += 1
 
-                #DEBUG
-                # print("Run a search on " + table + " using the term " + term)
+        # Merge the results under instection
+        if not ListofIds:
+            ListofIds = tempListofIDs
+        else:
+            ListofIds = intersect(ListofIds, tempListofIDs)
 
-                # ListofIDs = runQuery(table, term)
-                # printQuery(ListofIDs)
+    # If no special ranges provided, print & return
+    if not rangeQuery:
+        printQuery(ListofIds)
+        return
 
+    FinalListofIds = []
+    i = 0
 
-                # Add the term to the specified table to query
-                if(table == "pterm"):
-                    ptermQueryList.append(term)
-                elif(table == "rterm"):
-                    rtermQueryList.append(term)
-                elif(table == "score"):
-                    scoreQueryList.append(term)
-                else:
-                    print("ERROR: Unknown table: " + term)
-                    break
+    # Fetch the data associated with the ID's and check the range queries
+    while i < len(rangeQuery):
 
-                i+=2
-                delimiterFound = True
+        # Pull data
+        tempListofIDs = []
+        first = rangeQuery[i]
+        last = rangeQuery[i+ 2]
+        cond = rangeQuery[i+1]
+        i += 3
 
-        # Search all tables for the term
-        if(not delimiterFound):
-            term = queryParts[i]
+        # Format for query and get the list of ID's
+        key = cond + " " + last
+        tempListofIDs = hashQuery(first, key, ListofIds)
 
-            #DEBUG
-            # print("Run a search on ALL tables using the term " + term)
+        # Merge the results under instection
+        if not FinalListofIds:
+            FinalListofIds = tempListofIDs
+        else:
+            FinalListofIds = list(set(FinalListofIds) & set(tempListofIDs))
 
-            # Get a list of all review ID's from each table with the key
-            # ptermList = runQuery("pterm", term)
-            # rtermList = runQuery("rterm", term)
-            # scoreList = runQuery("scores", term)
+    printQuery(FinalListofIds)
 
-            # We want to search all tables for the term
-            ptermQueryList.append(term)
-            rtermQueryList.append(term)
-            scoreQueryList.append(term)
-
-            # The Code below is moved down
-            # ListofIDs = union(ptermList, rtermList, scoreList)
-            #
-            # # Prints the summary of the common ID's (union) b/t the db's
-            # printQuery(ListofIDs)
-
-        i+=1
-
-    # After applying the conditions, and after collecting all of the search terms, then run the query
-    outputList = []
-
-    for newTerm in ptermQueryList:
-        outputList = outputList + runRangeQuery("pterm", newTerm, dateLo, dateUp, priceLo, priceUp, scoreLo, scoreUp)
-    for newTerm in rtermQueryList:
-        outputList = outputList + runRangeQuery("rterm", newTerm, dateLo, dateUp, priceLo, priceUp, scoreLo, scoreUp)
-    for newTerm in scoreQueryList:
-        outputList = outputList + runRangeQuery("score", newTerm, dateLo, dateUp, priceLo, priceUp, scoreLo, scoreUp)
-
-    # Remove duplicates
-    outputList = list(dict.fromkeys(outputList))
-
-    # Prints the summary of the common ID's (union) b/t the db's
-    printQuery(outputList)
-
-
-
-
-
-    # if query contains ":"
-        # Parse and first half is the db, second half is the key
-
-    # if query contains ":" and " "
-        # Parse and first half is the db, remaining terms are key and cond.
-
-    # if query contains "%" (Wildcard only on end of query)
-        # Query for partial match
-
-    # if query contains >, < or = and # of " " = 2
-        # Ranged query (Price, Date, Score)
-
-    # if query contains >, < or = and # of " " > 2
-        # Ranged query + conditions (Price, Date, Score)
+    return
 
 # Handles queries and navigation of user input for Part 2
 def queryListener():
@@ -541,9 +537,9 @@ def queryListener():
         return True
 
     else: # Check & run the query!
-        checkQuery(query.lower()) # Return checkQuery and make it return T or F depending on state?
+        # checkQuery(query.lower())
+        checkQuery(query.lower())
         return True
-
 
 if (__name__ == "__main__"):
     # Initialize
